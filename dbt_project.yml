@@ -17,4 +17,4 @@ clean-targets:
 
 dispatch:
   - macro_namespace: dbt
-    search_order: ['dbt_citus_extension', 'dbt']
+    search_order: ['dbt_vitao', 'dbt']
