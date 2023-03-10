@@ -1,0 +1,10 @@
+version: 2
+
+macros:
+  - name: postgres__create_table_as
+    description: creates a table as columnar
+    arguments:
+      - name: this
+        description: Source schema name
+      - name: column
+        description: Source schema name
