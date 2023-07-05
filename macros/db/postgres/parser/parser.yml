@@ -1,0 +1,14 @@
+version: 2
+
+macros:
+  - name: unnest__json
+    description: Unnest JSON column
+    arguments:
+      - name: dict
+        description: Dict sample of a column
+      - name: string
+        description: String if the value is not a dict
+      - name: field
+        description: Field to be unnested
+      - name: is_array
+        description: If the field is an array
