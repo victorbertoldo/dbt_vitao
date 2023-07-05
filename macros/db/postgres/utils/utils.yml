@@ -1,0 +1,14 @@
+version: 2
+
+macros:
+  - name: exclude_col
+    description: creates a table as columnar
+    arguments:
+      - name: schema_nm
+        description: Source schema name
+      - name: tab
+        description: table name
+      - name: x_col
+        description: column to be excluded
+      - name: alias
+        description: alias of the table to call the column (ex. t1.col1, the alias would be t1)
