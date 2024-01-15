@@ -1,4 +1,4 @@
-{%- macro cool__formating(tab,src=0,prefix='',schema_src='') -%}
+{%- macro cool__formatter(tab,src=0,prefix='',schema_src='') -%}
     {#
         O parametro src possui o valor default de 0, sendo 0 para refs e 1 para sources
     #}
