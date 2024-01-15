@@ -13,12 +13,16 @@ macros:
       - name: alias
         description: alias of the table to call the column (ex. t1.col1, the alias would be t1)
 # tab,src=0,prefix='',schema_src=''
-  - name: cool_formater
-    description: do automatic formatting in data
+  - name: cool_formatter
+    description: do automatic formating in data
     arguments:
       - name: tab
         description: Table name
       - name: src
         description: this informs the macro if it is a source table or ref table. 0=ref, 1=source and 2=query
+      - name: prefix
+        description: prefix of the table name
+      - name: schema_nm
+        description: schema name
 
         
