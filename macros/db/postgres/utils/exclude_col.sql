@@ -7,7 +7,7 @@
     {%- endset -%}
     {%- set results = run_query(query) -%}
     {# Log results #}
-    {% do log('Results: ' ~ results, info=true) %}
+    {% do log('Results: ' ~ results, info=false) %}
 
     {%- if execute -%}
         {%- set cols = results.exclude(x_col) -%}
