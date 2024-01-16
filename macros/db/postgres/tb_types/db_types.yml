@@ -2,9 +2,8 @@ version: 2
 
 macros:
   - name: postgres__create_table_as
-    description: creates a table as columnar
+    description: creates a columnar table in postgres # it not works by default in this rdbms
     arguments:
-      - name: this
-        description: Source schema name
-      - name: column
-        description: Source schema name
+      - name: temporary
+      - name: relation
+      - name: sql

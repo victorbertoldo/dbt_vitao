@@ -1,4 +1,6 @@
-{% macro postgres__create_table_as(temporary, relation, sql) -%}
+{# 
+  {# for older versions of dbt #}
+  {% macro postgres__create_table_as(temporary, relation, sql) -%}
   {%- set unlogged = config.get('unlogged', default=false) -%}
   {%- set columnar = config.get('columnar', default=false) -%}
   {%- set sql_header = config.get('sql_header', none) -%}
@@ -23,10 +25,11 @@
     (
     {{ sql }}
   );
-{%- endmacro %}
+{%- endmacro %} #}
 
 
-{# for newer versions of dbt
+{# for newer versions of dbt #}
+{# This was updated because of the changes in the dbt version 1.7.x #}
   {% macro postgres__create_table_as(temporary, relation, sql) -%}
   {%- set unlogged = config.get('unlogged', default=false) -%}
   {%- set columnar = config.get('columnar', default=false) -%}
@@ -68,4 +71,4 @@
 {%- endmacro %}
 
   
-  #}
+  
