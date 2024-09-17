@@ -1,6 +1,7 @@
-{# 
+
   {# for older versions of dbt #}
-  {% macro postgres__create_table_as(temporary, relation, sql) -%}
+    
+ {#  {% macro postgres__create_table_as(temporary, relation, sql) -%}
   {%- set unlogged = config.get('unlogged', default=false) -%}
   {%- set columnar = config.get('columnar', default=false) -%}
   {%- set sql_header = config.get('sql_header', none) -%}
