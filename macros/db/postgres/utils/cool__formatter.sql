@@ -1,115 +1,22 @@
-{%- macro cool__formatter(tab,src=0,prefix='',schema_src='') -%}
-    {#
-        O parametro src possui o valor default de 0, sendo 0 para refs e 1 para sources
-    #}
-    {%- set fields=[] -%}
-    {%- if src == 0 -%} {# Ref #}
-        {%- set cols = adapter.get_columns_in_relation(ref(tab)) -%}
-    {%- elif src == 1 -%} {# Source #}
+{%- macro cool__formatter(tab, src=0, prefix='', schema_src='') -%}
+  {#
+    Legacy macro — use dbt_vitao.format_relation() for new projects.
 
-        {%- do log('Passou por aqui, antes do get columns: "%s"' | format(tab), info=false) -%}
-        {%- set cols = adapter.get_columns_in_relation(source(schema_src,tab)) -%}
-        {%- do log('Passou por aqui, depois do get columns: "%s"' | format(cols), info=false) -%}
-    {%- elif src == 2 -%} {# Query #}
-        {%- set query -%}
-            select * from {{ this }}
-        {%- endset -%}
-        {%- set results = run_query(query) -%}
-        {%- if execute %}
-            {%- set cols = results.column_names -%}
-        {%- endif -%}
-    {%- endif -%}
+    BEHAVIOR CHANGE from v0.0.3: JSON columns are no longer auto-expanded inline.
+    Use dbt_vitao.flatten_json() to expand JSON columns explicitly.
 
-    {%- for column in cols -%}
-        {{ '\n' }}
-        {%- do log('Passou por aqui, iterando sobre as colunas: "%s"' | format(column), info=false) -%}
-        {%- if column.data_type == 'string' or column.data_type == 'text' -%}
-            initcap(trim("{{ column.name }}")) as {{ prefix ~ column.name | lower | replace('.',"_") }}{%- if not loop.last -%},{%- endif -%}
-        {%- elif column.data_type == 'smallint' or column.data_type == 'int' or column.data_type == 'bigint' -%}
-            coalesce("{{ column.name }}",0) as {{ prefix ~ column.name | lower | replace('.',"_") }}{%- if not loop.last -%},{%- endif -%}
-        {%- elif column.data_type == 'double' or column.data_type == 'float' -%}
-             coalesce("{{ column.name }}",0.00) as {{ prefix ~ column.name | lower | replace('.',"_") }}{%- if not loop.last -%},{%- endif -%}
-        {%- elif column.data_type == 'jsonb' and 'trello' not in tab -%}
-
-            {%- set query_json -%}
-                select "{{ column.name }}"
-                from {{ source(schema_src,tab) }}
-                where jsonb_typeof("{{ column.name }}") = 'array' or jsonb_typeof("{{ column.name }}") = 'object'
-                limit 1
-            {%- endset -%}
-                        
-            {%- do log('Query JSON: "%s"' | format(query_json), info=false) -%}
-
-            {%- set results_json = run_query(query_json) -%}
-
-            {%- if execute -%}                      
-                 {%- set is_array = results_json[0][0][0] -%}
-                 {%- do log('JSONB Col. Verificacao é array: "%s"' | format(is_array), info=false) -%}
-            {%- endif -%}  
-
-            {%- if is_array == '[' -%}  
-
-                {%- set query_json -%}
-                    select "{{ column.name }}" ->0 as "{{ column.name }}"
-                    from {{ source(schema_src,tab) }}
-                    where jsonb_typeof("{{ column.name }}") = 'array'
-                    limit 1
-                {%- endset -%}
-
-
-            {%- elif is_array == '{' -%}
-
-                {%- set query_json -%}
-                    select "{{ column.name }}" 
-                    from {{ source(schema_src,tab) }}
-                    where jsonb_typeof("{{ column.name }}") = 'object'
-                    limit 1
-                {%- endset -%}            
-
-            {%- endif -%}  
-            
-            {%- set results_json = run_query(query_json) -%}
-
-            {%- if execute -%}                   
-                {%- do log('Results JSON Rows. Vals: "%s"' | format(results_json.rows[0][0]), info=false) -%}
-
-                {%- if results_json.rows[0][0] is not none -%}
-                    {%- set vals_jsonbcol = results_json.rows[0][0] -%}                
-                    {%- do log('JSONB Col. Vals: "%s"' | format(vals_jsonbcol), info=false) -%}
-
-                    {%- if vals_jsonbcol is not none -%}
-
-                        {%- do log('JSONB Col. Iniciando o parse da coluna "%s"...' | format(column.name), info=false) -%}
-                        {%- do log('Parsing result: "%s"' | format(vals_jsonbcol),info=false) -%}
-                    
-                        {%- set json2dict_jsonbcol = fromjson(vals_jsonbcol) -%}   
-
-                        {%- do log('Pos parse usando fromdict: "%s"' | format(json2dict_jsonbcol), info=false) -%} 
-
-                        {%- if is_array == '[' -%}                                              
-
-                            {%- set jsondata_counts = unnest__json(json2dict_jsonbcol,none,column.name,true) | count -%}                                             
-                            {{ unnest__json(json2dict_jsonbcol,none,column.name,true) }}{%- if jsondata_counts > 0 and not loop.last -%}, {% endif %}
-
-                        {%- elif is_array == '{' -%}
-
-                            {%- set jsondata_counts = unnest__json(json2dict_jsonbcol,none,column.name,none) | count -%} 
-                            {{ unnest__json(json2dict_jsonbcol,none,column.name,none) }}{%- if jsondata_counts > 0 and not loop.last -%}, {% endif %}
-
-                        {%- endif -%} 
-
-                        {%- do log('JSONB Col. Finalizou o parse da coluna "%s"...' | format(column.name), info=false) -%}
-
-                    {%- endif -%}
-                {%- endif -%}
-                {%- do log('Passou pelo parser do JSON', info=false)-%}
-            {%- endif -%}
-
-
-        {%- else -%}
-           "{{ column.name }}" as {{ prefix ~ column.name | lower | replace('.',"_") }} {%- if not loop.last -%},{%- endif -%}
-        {%- endif -%}
-        {%- do fields.append(column.name) -%}
-        {# {%- do log('Lista de campos: "%s"' | format(fields), info=false) -%}                                                       #}
-    {%- endfor %}
+    string_formatting defaults preserved as 'initcap' for backward compatibility
+    with original cool__formatter behavior. New dbt_vitao.format_relation() calls
+    default to 'trim_only'.
+  #}
+  {%- set opts = {'string_formatting': 'initcap'} -%}
+  {%- if src == 0 -%}
+    {{ return(dbt_vitao.format_relation(ref(tab), prefix=prefix, options=opts)) }}
+  {%- elif src == 1 -%}
+    {{ return(dbt_vitao.format_relation(source(schema_src, tab), prefix=prefix, options=opts)) }}
+  {%- elif src == 2 -%}
+    {{ return(dbt_vitao.format_relation(this, prefix=prefix, options=opts)) }}
+  {%- else -%}
+    {{ exceptions.raise_compiler_error("cool__formatter: invalid src value '" ~ src ~ "'. Use 0=ref, 1=source, 2=this.") }}
+  {%- endif -%}
 {%- endmacro -%}

@@ -1,0 +1,31 @@
+name: 'dbt_vitao_integration_tests'
+version: '0.0.1'
+
+config-version: 2
+
+profile: 'snowflake_dbt_dag'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  dbt_vitao_integration_tests:
+    +materialized: table
+    postgres:
+      +enabled: "{{ target.type == 'postgres' }}"
+    snowflake:
+      +enabled: "{{ target.type == 'snowflake' }}"
+
+seeds:
+  dbt_vitao_integration_tests:
+    +column_types:
+      id: integer
+      score: integer
+      amount: decimal(10,2)
+      is_active: boolean
+      payload: variant

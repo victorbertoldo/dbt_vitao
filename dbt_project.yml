@@ -5,6 +5,8 @@ require-dbt-version: [">=1.2.0", "<2.0.0"]
 
 config-version: 2
 
+profile: 'dbt_vitao'
+
 model-paths: ["models"]
 test-paths: ["tests"]
 macro-paths: ["macros"]
@@ -16,5 +18,7 @@ clean-targets:
   - "dbt_packages"
 
 dispatch:
+  - macro_namespace: dbt_vitao
+    search_order: ['dbt_vitao']
   - macro_namespace: dbt
     search_order: ['dbt_vitao', 'dbt']

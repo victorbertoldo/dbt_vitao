@@ -1,19 +1,11 @@
 version: 2
 
 macros:
-  - name: cool__indexer
-    description: creates an index on a given column with a given type
-    arguments:
-      - name: this
-        description: Table name
-      - name: column
-        description: column name
-      - name: index_type
-        description: Type of index
   - name: uindex
-    description: creates an unique index on a given column
+    description: >
+      LEGACY — Creates a unique index on a single column. Use dbt_vitao.optimize_relation() for new projects.
     arguments:
       - name: this
-        description: Table name
+        description: Target relation.
       - name: column
-        description: Column name
+        description: Column name.

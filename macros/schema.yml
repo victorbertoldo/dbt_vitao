@@ -1,0 +1,205 @@
+version: 2
+
+macros:
+
+  - name: format_column
+    description: >
+      Format a single column expression based on its data type and the configured
+      string_formatting option. Returns a SQL expression with alias.
+      Adapter-aware via dispatch. Supported adapters: postgres, snowflake.
+    arguments:
+      - name: column_name
+        description: Raw column name as it appears in the database.
+      - name: data_type
+        description: Column data type string (e.g. 'text', 'bigint', 'variant').
+      - name: alias_name
+        description: Desired SQL alias. Defaults to normalize_alias(column_name).
+      - name: options
+        description: >
+          Dict of options. Supported keys:
+          string_formatting (none | trim_only | lower | upper | initcap).
+          Defaults to var('dbt_vitao', {}).get('string_formatting', 'trim_only').
+
+  - name: format_relation
+    description: >
+      Generate a formatted column list for an entire relation. Iterates over
+      all columns and applies format_column per column type.
+      Adapter-aware via dispatch. Supported adapters: postgres, snowflake.
+    arguments:
+      - name: relation
+        description: A dbt relation object (ref(), source(), this, or adapter.get_relation()).
+      - name: prefix
+        description: Optional string prefix prepended to every column alias.
+      - name: options
+        description: Passed through to format_column. See format_column options.
+
+  - name: flatten_json
+    description: >
+      Flatten a JSON/semi-structured column from a relation.
+      Supports two modes:
+      - mode='columns': generates a wide SELECT projection.
+      - mode='rows': generates a lateral flatten query returning one row per key.
+      Adapter-aware via dispatch. Supported adapters: postgres, snowflake.
+    arguments:
+      - name: relation
+        description: A dbt relation object.
+      - name: json_column
+        description: Name of the JSON/JSONB/VARIANT column to flatten.
+      - name: mode
+        description: "'columns' (wide projection) or 'rows' (lateral explode). Default: 'columns'."
+      - name: max_depth
+        description: Maximum nesting depth for auto-discovery. Default 2.
+      - name: sample_size
+        description: Row limit for key auto-discovery (Snowflake only). Default 1000.
+      - name: schema_override
+        description: >
+          Optional list of paths to project. Accepts strings or dicts.
+          String form: 'user.name' (postgres) or 'user:name' (snowflake).
+          Dict form: {path: 'user.name', cast_type: 'text', alias: 'user_name'}.
+          Required for postgres mode='columns'. Recommended for snowflake production.
+      - name: prefix
+        description: Prefix added to all generated column aliases.
+      - name: include_source_columns
+        description: If true, includes src.* alongside the flattened columns. Default true.
+      - name: recursive
+        description: Enable recursive lateral flatten (Snowflake rows mode only). Default true.
+      - name: outer
+        description: Preserve source rows with null JSON (Snowflake rows mode). Default true.
+
+  - name: json_extract_scalar
+    description: >
+      Extract a scalar value from a JSON expression at the given dot-separated path.
+      Returns a cast SQL expression.
+      Adapter-aware via dispatch. Supported adapters: postgres, snowflake.
+    arguments:
+      - name: expr
+        description: SQL expression for the JSON/JSONB/VARIANT column.
+      - name: path
+        description: Dot-separated key path (e.g. 'user.name' or 'account.address.city').
+      - name: cast_type
+        description: Target SQL type. Default 'string' (postgres uses 'text').
+
+  - name: json_extract_object
+    description: >
+      Extract a nested object value from a JSON expression.
+      Returns the object (not cast to text).
+      Adapter-aware via dispatch. Supported adapters: postgres, snowflake.
+    arguments:
+      - name: expr
+        description: SQL expression for the JSON/JSONB/VARIANT column.
+      - name: path
+        description: Dot-separated key path.
+
+  - name: json_extract_variant
+    description: >
+      Extract a raw VARIANT value from a Snowflake semi-structured column.
+      Not available on PostgreSQL — use json_extract_object() instead.
+      Supported adapters: snowflake only.
+    arguments:
+      - name: expr
+        description: SQL expression for the VARIANT/OBJECT column.
+      - name: path
+        description: Colon or dot-separated path (converted to colon notation internally).
+
+  - name: get_relation_columns
+    description: >
+      Return the list of Column objects for a given relation.
+      Thin adapter-aware wrapper over adapter.get_columns_in_relation().
+      Supported adapters: postgres, snowflake (and any adapter supported by dbt core).
+    arguments:
+      - name: relation
+        description: A dbt relation object.
+
+  - name: optimize_relation
+    description: >
+      Apply adapter-specific storage optimization to a relation.
+      PostgreSQL: creates indexes (strategy='index').
+      Snowflake: applies clustering (strategy='cluster_by') or
+      search optimization (strategy='search_optimization').
+      Must be called in a post-hook. Optimization is always opt-in.
+    arguments:
+      - name: relation
+        description: The target relation (typically 'this').
+      - name: strategy
+        description: >
+          Optimization strategy.
+          postgres: 'index'.
+          snowflake: 'cluster_by', 'search_optimization'.
+      - name: columns
+        description: List of column names or Snowflake path expressions to optimize.
+      - name: options
+        description: >
+          Dict of strategy-specific options.
+          postgres index: {index_type: 'btree|hash|gin|gist|spgist|brin|concurrent'}.
+          snowflake search_optimization: {mode: 'equality|substring|variant'}.
+
+  - name: safe_cast
+    description: >
+      Safely cast an expression to a target type using adapter-appropriate syntax.
+      PostgreSQL: uses :: cast operator.
+      Snowflake: uses TRY_CAST (returns NULL on failure instead of error).
+    arguments:
+      - name: expr
+        description: SQL expression to cast.
+      - name: cast_type
+        description: Target SQL type string.
+
+  - name: type_family
+    description: >
+      Map a raw data type string to a logical family: string, integer, numeric,
+      float, boolean, date, timestamp, json, or unknown.
+      Used internally by format_column.
+    arguments:
+      - name: data_type
+        description: Raw data type string from adapter.get_columns_in_relation().
+
+  - name: normalize_alias
+    description: >
+      Normalize a string for use as a SQL column alias.
+      Lowercases, replaces spaces/dots/colons/hyphens/slashes with underscores,
+      removes @ and quote characters.
+    arguments:
+      - name: name
+        description: Input string to normalize.
+
+  - name: cool__formatter
+    description: >
+      LEGACY — use dbt_vitao.format_relation() for new projects.
+      Formats all columns of a relation with type-based expressions.
+      JSON columns are returned as-is (not auto-expanded).
+      Preserves initcap string formatting for backward compatibility.
+    arguments:
+      - name: tab
+        description: Table or model name.
+      - name: src
+        description: "Source mode: 0=ref (default), 1=source, 2=this."
+      - name: prefix
+        description: Optional column alias prefix.
+      - name: schema_src
+        description: Schema name (required when src=1).
+
+  - name: cool__indexer
+    description: >
+      LEGACY — use dbt_vitao.optimize_relation() for new projects.
+      Creates a PostgreSQL index on a single column.
+    arguments:
+      - name: this
+        description: Target relation.
+      - name: column
+        description: Column name to index.
+      - name: index_type
+        description: "Index type: btree (default), hash, gin, gist, spgist, brin, concurrent."
+
+  - name: unnest__json
+    description: >
+      INTERNAL PostgreSQL helper — generates JSONB path expressions from a pre-fetched dict.
+      Not part of the public API. Use dbt_vitao.flatten_json() instead.
+    arguments:
+      - name: dict
+        description: Python dict from fromjson() of a sampled JSONB value.
+      - name: string
+        description: Current path string being built recursively.
+      - name: field
+        description: Source column name.
+      - name: is_array
+        description: Truthy if the root is a JSON array.

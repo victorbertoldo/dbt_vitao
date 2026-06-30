@@ -1,0 +1,60 @@
+# Changelog
+
+## [Unreleased] — 0.1.0
+
+### Added
+
+- **Public API**: stable macro names `format_column`, `format_relation`, `flatten_json`,
+  `json_extract_scalar`, `json_extract_object`, `json_extract_variant`,
+  `get_relation_columns`, `optimize_relation`, `safe_cast`.
+- **Adapter dispatch**: all public macros use `adapter.dispatch('macro_name', 'dbt_vitao')`.
+- **Snowflake support**: `snowflake__format_column`, `snowflake__format_relation`,
+  `snowflake__flatten_json` (modes: `columns`, `rows`), `snowflake__json_extract_*`,
+  `snowflake__optimize_relation` (strategies: `cluster_by`, `search_optimization`),
+  `snowflake__safe_cast`.
+- **PostgreSQL dispatch refactor**: existing PostgreSQL logic moved to `postgres__*` macros
+  under `macros/adapters/postgres/`.
+- **Default implementations**: clear compiler errors for unsupported adapters.
+- **Configurable string formatting** via `vars.dbt_vitao.string_formatting`.
+  Supported values: `none`, `trim_only`, `lower`, `upper`, `initcap`. Default: `trim_only`.
+- **`flatten_json` modes**: `mode='columns'` for wide projection, `mode='rows'`
+  for lateral row explosion.
+- **Snowflake search optimization**: `optimize_relation(..., strategy='search_optimization')`
+  supports `equality`, `substring`, and `variant` modes.
+- **`type_family` utility**: maps raw type strings to logical families.
+- **`normalize_alias` utility**: consistent alias normalization across adapters.
+- **Integration test fixtures** under `integration_tests/`.
+- **Adapter support matrix** in `docs/adapter-support.md`.
+- **`dbt_vitao` dispatch block** added to `dbt_project.yml`.
+
+### Changed
+
+- **`cool__formatter`** is now a thin wrapper over `dbt_vitao.format_relation()`.
+  - String formatting is explicitly set to `initcap` in the wrapper to preserve
+    backward-compatible output.
+  - **BREAKING**: JSON columns are no longer auto-expanded inline. They now appear
+    as raw column references. Use `dbt_vitao.flatten_json()` to expand JSON columns.
+- **`cool__indexer`** is now a thin wrapper over `dbt_vitao.optimize_relation()`.
+  Output SQL is functionally identical.
+- `dbt_project.yml` dispatch block now includes `dbt_vitao` namespace.
+
+### Deprecated
+
+- `cool__formatter` — use `dbt_vitao.format_relation()`.
+- `unnest__json` — internal helper, not a public API. Use `dbt_vitao.flatten_json()`.
+- `cool__indexer` — use `dbt_vitao.optimize_relation()`.
+- `uindex` — use `dbt_vitao.optimize_relation(strategy='index')` with a unique index option.
+
+---
+
+## [0.0.3] — previous
+
+- PostgreSQL index support via `cool__indexer` (btree, hash, gin, gist, spgist, brin, concurrent).
+- Unique index via `uindex`.
+- Custom `postgres__create_table_as` for columnar table support.
+
+## [0.0.2] — previous
+
+- `cool__formatter`: automatic column formatting and inline JSONB expansion.
+- `unnest__json`: recursive JSONB path expression generator.
+- `exclude_col`: column exclusion helper.
