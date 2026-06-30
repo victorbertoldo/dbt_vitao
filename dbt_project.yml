@@ -1,11 +1,9 @@
 name: 'dbt_vitao'
-version: '0.0.3'
+version: '0.1.0'
 
 require-dbt-version: [">=1.2.0", "<2.0.0"]
 
 config-version: 2
-
-profile: 'dbt_vitao'
 
 model-paths: ["models"]
 test-paths: ["tests"]
