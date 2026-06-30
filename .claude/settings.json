@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dbt parse:*)",
+      "Bash(dbt compile:*)",
+      "Bash(dbt test:*)",
+      "Bash(dbt deps:*)",
+      "Read",
+      "Edit",
+      "Write"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(dropdb:*)",
+      "Bash(psql:*DROP*)",
+      "Bash(snow sql:*DROP*)"
+    ]
+  }
+}
