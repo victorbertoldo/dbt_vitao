@@ -1,5 +1,5 @@
 id,name,email,score,amount,is_active,event_date,event_ts,payload
-1,Alice Smith,Alice@Test.COM,42,99.95,true,2024-01-15,2024-01-15T10:30:00,"{""id"": 1, ""customer"": {""name"": ""Alice"", ""email"": ""Alice@Test.COM"", ""address"": {""city"": ""Ã£o Paulo"", ""country"": ""BR""}}, ""orders"": [{""order_id"": 100, ""amount"": 50.25}, {""order_id"": 101, ""amount"": 75.10}], ""flags"": {""active"": true, ""vip"": null}, ""external_code"": ""AbC-001-XyZ"", ""url"": ""HTTPS://Example.COM/SomePath""}"
+1,Alice Smith,Alice@Test.COM,42,99.95,true,2024-01-15,2024-01-15T10:30:00,"{""id"": 1, ""customer"": {""name"": ""Alice"", ""email"": ""Alice@Test.COM"", ""address"": {""city"": ""Ã£o Paulo"", ""country"": ""BR""}}, ""orders"": [{""order_id"": 100, ""amount"": 50.25}, {""order_id"": 101, ""amount"": 75.10}], ""flags"": {""active"": true, ""vip"": null}, ""external_code"": ""AbC-001-XyZ"", ""url"": ""HTTPS://Example.COM/SomePath"", ""category"": ""\""ESTACIONAMENTO\""""}"
 2,Bob Jones,bob@example.com,0,0.00,false,2024-02-20,2024-02-20T08:00:00,"{""id"": 2, ""customer"": {""name"": ""Bob""}}"
 3,Carol  Extra  Spaces ,carol@test.org,100,1500.00,true,2024-03-01,2024-03-01T12:00:00,"{}"
 4,null_test,,0,0.00,false,2024-01-01,2024-01-01T00:00:00,"{""flags"": {""active"": null, ""vip"": null}}"

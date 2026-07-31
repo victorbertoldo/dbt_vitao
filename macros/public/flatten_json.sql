@@ -8,7 +8,8 @@
     prefix='',
     include_source_columns=true,
     recursive=true,
-    outer=true
+    outer=true,
+    strip_quotes=false
 ) %}
   {{ return(adapter.dispatch('flatten_json', 'dbt_vitao')(
       relation,
@@ -20,6 +21,7 @@
       prefix,
       include_source_columns,
       recursive,
-      outer
+      outer,
+      strip_quotes
   )) }}
 {% endmacro %}

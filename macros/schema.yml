@@ -65,6 +65,13 @@ macros:
         description: Enable recursive lateral flatten (Snowflake rows mode only). Default true.
       - name: outer
         description: Preserve source rows with null JSON (Snowflake rows mode). Default true.
+      - name: strip_quotes
+        description: >
+          If true, wraps string-typed column projections in mode='columns' with
+          trim(..., '"') to remove stray leading/trailing double-quote characters.
+          Useful when source values are double-encoded (e.g. a field whose literal
+          string content is "FOO", quotes included, instead of the unquoted value).
+          Only affects columns cast to a string/text type. Default false.
 
   - name: json_extract_scalar
     description: >

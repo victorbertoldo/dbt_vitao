@@ -8,14 +8,15 @@
     prefix,
     include_source_columns,
     recursive,
-    outer
+    outer,
+    strip_quotes
 ) %}
 
   {%- if mode == 'rows' -%}
     {{ dbt_vitao._snowflake__flatten_json_rows(relation, json_column, include_source_columns, recursive, outer) }}
 
   {%- elif mode == 'columns' -%}
-    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, sample_size, max_depth) }}
+    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, sample_size, max_depth, strip_quotes) }}
 
   {%- else -%}
     {{ exceptions.raise_compiler_error(
@@ -36,6 +37,22 @@
   {%- elif sf_typeof == 'TEXT' -%}string
   {%- elif sf_typeof == 'BOOLEAN' -%}boolean
   {%- else -%}variant
+  {%- endif -%}
+{%- endmacro -%}
+
+
+{#
+  Casts a Snowflake path expression to the target type. When strip_quotes is true and the
+  target is 'string', wraps the cast in trim(..., '"') to remove stray leading/trailing quote
+  characters that appear when source values are double-encoded (e.g. a string whose literal
+  content is "ESTACIONAMENTO", quotes included, rather than the unquoted value).
+#}
+{%- macro _snowflake__cast_expr(path_expr, cast_type, strip_quotes) -%}
+  {%- set casted = path_expr ~ '::' ~ cast_type -%}
+  {%- if strip_quotes and cast_type == 'string' -%}
+    {{ return("trim(" ~ casted ~ ", '\"')") }}
+  {%- else -%}
+    {{ return(casted) }}
   {%- endif -%}
 {%- endmacro -%}
 
@@ -77,7 +94,7 @@
 
 {%- macro _snowflake__flatten_json_columns(
     relation, json_column, schema_override,
-    prefix, include_source_columns, sample_size, max_depth
+    prefix, include_source_columns, sample_size, max_depth, strip_quotes
 ) -%}
 
   {%- set col_prefix = prefix ~ '_' if prefix else '' -%}
@@ -100,7 +117,8 @@
       {%- endif -%}
       {%- set key_parts = (path | replace('.', ':')).split(':') -%}
       {%- set expr = dbt_vitao._snowflake__bracket_path(json_column, key_parts) | trim -%}
-      {%- do projections.append('src.' ~ expr ~ '::' ~ cast_type ~ ' as ' ~ alias) -%}
+      {%- set casted = dbt_vitao._snowflake__cast_expr('src.' ~ expr, cast_type, strip_quotes) -%}
+      {%- do projections.append(casted ~ ' as ' ~ alias) -%}
     {%- endfor -%}
 
     select
@@ -190,18 +208,18 @@
           {# Expand the nested object into individual child columns #}
           {%- for child in l2_data[key] -%}
             {%- set child_alias = col_prefix ~ dbt_vitao.normalize_alias(key ~ '_' ~ child.key) -%}
-            {%- do projections.append(
-              "src." ~ json_column ~ "['" ~ key ~ "']['" ~ child.key ~ "']::" ~ child.cast ~ " as " ~ child_alias
-            ) -%}
+            {%- set child_path  = "src." ~ json_column ~ "['" ~ key ~ "']['" ~ child.key ~ "']" -%}
+            {%- set casted = dbt_vitao._snowflake__cast_expr(child_path, child.cast, strip_quotes) -%}
+            {%- do projections.append(casted ~ " as " ~ child_alias) -%}
           {%- endfor -%}
 
         {%- else -%}
           {# Scalar, array, or OBJECT at max depth: project as single column #}
-          {%- set cast  = dbt_vitao._snowflake__type_to_cast(vtype) -%}
-          {%- set alias = col_prefix ~ dbt_vitao.normalize_alias(key) -%}
-          {%- do projections.append(
-            "src." ~ json_column ~ "['" ~ key ~ "']::" ~ cast ~ " as " ~ alias
-          ) -%}
+          {%- set cast     = dbt_vitao._snowflake__type_to_cast(vtype) -%}
+          {%- set alias    = col_prefix ~ dbt_vitao.normalize_alias(key) -%}
+          {%- set key_path = "src." ~ json_column ~ "['" ~ key ~ "']" -%}
+          {%- set casted   = dbt_vitao._snowflake__cast_expr(key_path, cast, strip_quotes) -%}
+          {%- do projections.append(casted ~ " as " ~ alias) -%}
         {%- endif -%}
 
       {%- endfor -%}

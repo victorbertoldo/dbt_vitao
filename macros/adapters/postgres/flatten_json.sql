@@ -8,14 +8,15 @@
     prefix,
     include_source_columns,
     recursive,
-    outer
+    outer,
+    strip_quotes
 ) %}
 
   {%- if mode == 'rows' -%}
     {{ dbt_vitao._postgres__flatten_json_rows(relation, json_column, include_source_columns, outer) }}
 
   {%- elif mode == 'columns' -%}
-    {{ dbt_vitao._postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns) }}
+    {{ dbt_vitao._postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, strip_quotes) }}
 
   {%- else -%}
     {{ exceptions.raise_compiler_error(
@@ -45,7 +46,7 @@
 {%- endmacro -%}
 
 
-{%- macro _postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns) -%}
+{%- macro _postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, strip_quotes) -%}
 
   {%- if schema_override is none -%}
     {{ exceptions.raise_compiler_error(
@@ -71,6 +72,9 @@
       {%- set alias = col_prefix ~ entry.get('alias', dbt_vitao.normalize_alias(path)) -%}
     {%- endif -%}
     {%- set expr = dbt_vitao.json_extract_scalar('"' ~ json_column ~ '"', path, cast_type) | trim -%}
+    {%- if strip_quotes and cast_type in ('text', 'string', 'varchar') -%}
+      {%- set expr = "trim(" ~ expr ~ ", '\"')" -%}
+    {%- endif -%}
     {%- do projections.append(expr ~ ' as ' ~ alias) -%}
   {%- endfor -%}
 
