@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.0] — 2026-08-04
+
+### Fixed
+
+- **`flatten_json`** (Snowflake, `mode='columns'`, auto-discovery): fixed duplicate
+  column aliases when a nested object key has inconsistent types across sampled
+  rows (e.g. `NULL` for some rows, `OBJECT`/`TEXT` for others). Level-2 key
+  discovery now dedupes per child key, preferring the first non-`NULL_VALUE`
+  type observed.
+- **`normalize_alias`**: now strips parentheses and transliterates common Latin
+  accented characters (á, ã, ç, õ, etc.), so source keys like
+  `"Usuários Únicos"` or `"Formas (totem)"` produce valid unquoted Snowflake
+  identifiers instead of syntax errors.
+
 ## [Unreleased] — 0.1.0
 
 ### Added

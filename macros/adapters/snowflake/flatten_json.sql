@@ -29,12 +29,16 @@
 
 {#
   Maps Snowflake typeof() return values to SQL cast types.
-  typeof() returns: FIXED, REAL, TEXT, BOOLEAN, OBJECT, ARRAY, NULL_VALUE, etc.
+  typeof() has been observed to return both short and long forms for the same
+  underlying type (e.g. INTEGER and FIXED for numbers, VARCHAR and TEXT for
+  strings) depending on account/version -- match all known synonyms rather than
+  a single literal, since an unmatched type silently falls back to `variant`
+  (uncast), which then displays with native JSON quoting for strings.
 #}
 {%- macro _snowflake__type_to_cast(sf_typeof) -%}
-  {%- if sf_typeof == 'FIXED' -%}number
-  {%- elif sf_typeof == 'REAL' -%}float
-  {%- elif sf_typeof == 'TEXT' -%}string
+  {%- if sf_typeof in ('FIXED', 'INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'DECIMAL', 'NUMBER', 'NUMERIC') -%}number
+  {%- elif sf_typeof in ('REAL', 'FLOAT', 'DOUBLE') -%}float
+  {%- elif sf_typeof in ('TEXT', 'VARCHAR', 'CHAR', 'STRING') -%}string
   {%- elif sf_typeof == 'BOOLEAN' -%}boolean
   {%- else -%}variant
   {%- endif -%}
@@ -186,15 +190,34 @@
           order by parent_key, child_key
         {%- endset -%}
 
+        {# Sampled rows can disagree on a child key's type (e.g. NULL for some rows,
+           OBJECT/TEXT for others), so `distinct parent_key, child_key, value_type`
+           above can yield more than one row per child key. Dedupe here, preferring
+           the first non-NULL_VALUE type seen, so each child key projects exactly
+           one column. #}
+        {%- set l2_seen = {} -%}
         {%- for row in run_query(l2_sql).rows -%}
-          {%- set pk = row[0] -%}
-          {%- if pk not in l2_data -%}
-            {%- do l2_data.update({pk: []}) -%}
+          {%- set pk    = row[0] -%}
+          {%- set ck    = row[1] -%}
+          {%- set vtype = row[2] -%}
+          {%- if pk not in l2_seen -%}
+            {%- do l2_seen.update({pk: {}}) -%}
           {%- endif -%}
-          {%- do l2_data[pk].append({
-            'key':  row[1],
-            'cast': dbt_vitao._snowflake__type_to_cast(row[2])
-          }) -%}
+          {%- set existing = l2_seen[pk].get(ck) -%}
+          {%- if existing is none or existing == 'NULL_VALUE' -%}
+            {%- do l2_seen[pk].update({ck: vtype}) -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- for pk, children in l2_seen.items() -%}
+          {%- set entries = [] -%}
+          {%- for ck, vtype in children.items() -%}
+            {%- do entries.append({
+              'key':  ck,
+              'cast': dbt_vitao._snowflake__type_to_cast(vtype)
+            }) -%}
+          {%- endfor -%}
+          {%- do l2_data.update({pk: entries}) -%}
         {%- endfor -%}
       {%- endif -%}
 
