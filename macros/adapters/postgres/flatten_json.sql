@@ -7,6 +7,7 @@
     schema_override,
     prefix,
     include_source_columns,
+    include_json_column,
     recursive,
     outer,
     strip_quotes
@@ -16,7 +17,7 @@
     {{ dbt_vitao._postgres__flatten_json_rows(relation, json_column, include_source_columns, outer) }}
 
   {%- elif mode == 'columns' -%}
-    {{ dbt_vitao._postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, strip_quotes) }}
+    {{ dbt_vitao._postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, include_json_column, strip_quotes) }}
 
   {%- else -%}
     {{ exceptions.raise_compiler_error(
@@ -46,7 +47,7 @@
 {%- endmacro -%}
 
 
-{%- macro _postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, strip_quotes) -%}
+{%- macro _postgres__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, include_json_column, strip_quotes) -%}
 
   {%- if schema_override is none -%}
     {{ exceptions.raise_compiler_error(
@@ -80,7 +81,17 @@
 
   select
     {%- if include_source_columns %}
+      {%- if include_json_column %}
     src.*,
+      {%- else -%}
+        {#- Postgres has no `SELECT * EXCLUDE (...)`, so explicitly list every source
+           column except json_column via relation introspection. Only works when
+           `relation` is an actual Relation object (ref/source), not a raw subquery
+           string -- fine here since schema_override already requires explicit paths. #}
+        {%- for col in adapter.get_columns_in_relation(relation) if col.name | lower != json_column | lower %}
+    src."{{ col.name }}",
+        {%- endfor %}
+      {%- endif %}
     {%- endif %}
     {{ projections | join(',\n    ') }}
   from {{ relation }} src

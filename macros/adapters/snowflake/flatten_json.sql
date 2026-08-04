@@ -7,6 +7,7 @@
     schema_override,
     prefix,
     include_source_columns,
+    include_json_column,
     recursive,
     outer,
     strip_quotes
@@ -16,7 +17,7 @@
     {{ dbt_vitao._snowflake__flatten_json_rows(relation, json_column, include_source_columns, recursive, outer) }}
 
   {%- elif mode == 'columns' -%}
-    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, sample_size, max_depth, strip_quotes) }}
+    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes) }}
 
   {%- else -%}
     {{ exceptions.raise_compiler_error(
@@ -221,10 +222,17 @@
 
 {%- macro _snowflake__flatten_json_columns(
     relation, json_column, schema_override,
-    prefix, include_source_columns, sample_size, max_depth, strip_quotes
+    prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes
 ) -%}
 
   {%- set col_prefix = prefix ~ '_' if prefix else '' -%}
+
+  {#- Once json_column's fields are expanded into named columns, the original blob is
+     usually just noise (e.g. an intermediate array-element column from a chained
+     mode='rows' -> mode='columns' flatten). include_json_column=false drops it from the
+     src.* passthrough via Snowflake's native `* EXCLUDE (...)`, while keeping every
+     other source column (join keys, lineage columns, etc). #}
+  {%- set source_cols_expr = 'src.*' if include_json_column else ('src.* exclude (' ~ json_column ~ ')') -%}
 
   {# ------------------------------------------------------------------ #}
   {# PATH A: user provided schema_override — no discovery needed         #}
@@ -250,7 +258,7 @@
 
     select
       {%- if include_source_columns %}
-      src.*,
+      {{ source_cols_expr }},
       {%- endif %}
       {{ projections | join(',\n      ') }}
     from {{ relation }} src
@@ -274,7 +282,7 @@
 
       select
         {%- if include_source_columns %}
-        src.*,
+        {{ source_cols_expr }},
         {%- endif %}
         {%- if projections | length > 0 %}
         {{ projections | join(',\n        ') }}

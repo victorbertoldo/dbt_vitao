@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.1] — 2026-08-04
+
+### Added
+
+- **`flatten_json`**: new `include_json_column` parameter (default `true`,
+  backward compatible). When `include_source_columns=true`, the original
+  `json_column` is normally carried through as part of `src.*` alongside its
+  expanded fields; `include_json_column=false` drops just that column
+  (Snowflake: native `* EXCLUDE (...)`; Postgres: explicit column list via
+  relation introspection, excluding `json_column`) while keeping every other
+  source column. Useful when chaining `mode='rows'` into `mode='columns'` to
+  flatten an array field -- the intermediate per-element object column is
+  redundant noise once its own fields are expanded.
+
 ## [0.4.0] — 2026-08-04
 
 ### Changed

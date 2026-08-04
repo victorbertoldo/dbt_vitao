@@ -7,6 +7,7 @@
     schema_override=none,
     prefix='',
     include_source_columns=true,
+    include_json_column=true,
     recursive=true,
     outer=true,
     strip_quotes=false
@@ -20,6 +21,7 @@
       schema_override,
       prefix,
       include_source_columns,
+      include_json_column,
       recursive,
       outer,
       strip_quotes
