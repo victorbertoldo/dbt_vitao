@@ -161,7 +161,23 @@
         order by key_name
       {%- endset -%}
 
-      {%- set l1_rows = run_query(l1_sql).rows -%}
+      {# Same type-inconsistency issue as level 2 below: a sampled key can disagree on
+         type across rows (e.g. NULL for some, TEXT/OBJECT for others), so `distinct
+         key_name, value_type` can yield more than one row per key. Dedupe here too,
+         preferring the first non-NULL_VALUE type seen. #}
+      {%- set l1_seen = {} -%}
+      {%- for row in run_query(l1_sql).rows -%}
+        {%- set key   = row[0] -%}
+        {%- set vtype = row[1] -%}
+        {%- set existing = l1_seen.get(key) -%}
+        {%- if existing is none or existing == 'NULL_VALUE' -%}
+          {%- do l1_seen.update({key: vtype}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set l1_rows = [] -%}
+      {%- for key, vtype in l1_seen.items() -%}
+        {%- do l1_rows.append([key, vtype]) -%}
+      {%- endfor -%}
 
       {# --- Level 2: for every OBJECT-valued L1 key, discover its children (if max_depth > 1) --- #}
       {%- set l2_data = {} -%}

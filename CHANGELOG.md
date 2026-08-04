@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1] — 2026-08-04
+
+### Fixed
+
+- **`flatten_json`** (Snowflake, `mode='columns'`, auto-discovery): the same
+  type-inconsistency dedup issue fixed for level-2 keys in 0.3.0 also affected
+  level-1 (top-level) key discovery — a top-level key that is `NULL` for some
+  sampled rows and typed for others could still produce duplicate columns.
+  Level-1 discovery now dedupes the same way.
+- **`normalize_alias`**: replaced the fixed list of character replacements with
+  a catch-all sanitizer (letters/digits/underscore only, everything else
+  collapsed to `_`), and added a leading-digit guard. Fixes invalid
+  identifiers from free-text source keys such as survey questions
+  (`"19. Principal insight..."` → started with a digit, `?` characters
+  weren't stripped).
+
 ## [0.3.0] — 2026-08-04
 
 ### Fixed
