@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0] — 2026-08-04
+
+### Changed
+
+- **`flatten_json`** (Snowflake, `mode='columns'`, auto-discovery): `max_depth`
+  is now a genuine recursive depth bound instead of a fixed two-level
+  expansion. Previously the macro only ever discovered root keys and, for
+  `max_depth > 1`, one level of their children — any value passed above `2`
+  had no additional effect, so an object nested three or more levels deep
+  (e.g. `user.address.city`) stayed a single `VARIANT` column regardless of
+  `max_depth`. The discovery/projection logic is now a recursive macro that
+  keeps expanding `OBJECT`-typed keys until `current_depth == max_depth`, so
+  `max_depth=3` (or higher) actually reaches deeper nesting. Behavior at the
+  default `max_depth=2` is unchanged — verified against the full existing
+  model suite with no projection differences.
+- Array-valued keys (e.g. a `levels` field holding a list of objects) are
+  still left as a single `VARIANT` column at any depth -- `mode='columns'`
+  produces one wide row per source row, which an array can't be flattened
+  into; use `mode='rows'` in a separate model for that shape.
+
 ## [0.3.3] — 2026-08-04
 
 ### Fixed
