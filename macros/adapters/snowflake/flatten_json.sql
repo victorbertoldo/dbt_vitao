@@ -69,9 +69,37 @@
 {%- macro _snowflake__bracket_path(column_name, key_parts) -%}
   {%- set segments = [column_name] -%}
   {%- for part in key_parts -%}
-    {%- do segments.append("['" ~ part ~ "']") -%}
+    {%- do segments.append("['" ~ dbt_vitao._snowflake__escape_key(part) ~ "']") -%}
   {%- endfor -%}
   {{ return(segments | join('')) }}
+{%- endmacro -%}
+
+
+{#
+  Escapes a raw JSON key for safe interpolation inside a single-quoted Snowflake
+  bracket-path segment (e.g. RAW_DATA['<key>']). Source keys are arbitrary text (survey
+  questions, free-form labels) and can contain literal apostrophes, which would otherwise
+  terminate the string literal early and produce invalid SQL.
+#}
+{%- macro _snowflake__escape_key(key) -%}
+  {{ return(key | replace("'", "''")) }}
+{%- endmacro -%}
+
+
+{#
+  Returns `alias` unchanged if not already present in `used_aliases`, otherwise appends
+  `_2`, `_3`, ... until unique. Mutates `used_aliases` (a dict used as a set) to record
+  whichever alias is returned. Jinja has no `while` loop, so this recurses on collision --
+  fine in practice since real collisions are a handful of near-duplicate keys, not hundreds.
+#}
+{%- macro _snowflake__dedupe_alias(alias, used_aliases, n=1) -%}
+  {%- set candidate = alias if n == 1 else (alias ~ '_' ~ n) -%}
+  {%- if candidate in used_aliases -%}
+    {{ return(dbt_vitao._snowflake__dedupe_alias(alias, used_aliases, n + 1)) }}
+  {%- else -%}
+    {%- do used_aliases.update({candidate: true}) -%}
+    {{ return(candidate) }}
+  {%- endif -%}
 {%- endmacro -%}
 
 
@@ -239,15 +267,21 @@
 
       {# --- Build the projection list --- #}
       {%- set projections = [] -%}
+      {#- Distinct source keys can still normalize to the same alias (e.g. "Nome" and
+         "Nome:" both become "nome"). Track aliases already used and disambiguate with a
+         numeric suffix instead of emitting a duplicate-column SQL error. #}
+      {%- set used_aliases = {} -%}
       {%- for row in l1_rows -%}
         {%- set key   = row[0] -%}
         {%- set vtype = row[1] -%}
+        {%- set escaped_key = dbt_vitao._snowflake__escape_key(key) -%}
 
         {%- if vtype == 'OBJECT' and max_depth > 1 and key in l2_data -%}
           {# Expand the nested object into individual child columns #}
           {%- for child in l2_data[key] -%}
-            {%- set child_alias = col_prefix ~ dbt_vitao.normalize_alias(key ~ '_' ~ child.key) -%}
-            {%- set child_path  = "src." ~ json_column ~ "['" ~ key ~ "']['" ~ child.key ~ "']" -%}
+            {%- set child_alias = dbt_vitao._snowflake__dedupe_alias(
+              col_prefix ~ dbt_vitao.normalize_alias(key ~ '_' ~ child.key), used_aliases) -%}
+            {%- set child_path  = "src." ~ json_column ~ "['" ~ escaped_key ~ "']['" ~ dbt_vitao._snowflake__escape_key(child.key) ~ "']" -%}
             {%- set casted = dbt_vitao._snowflake__cast_expr(child_path, child.cast, strip_quotes) -%}
             {%- do projections.append(casted ~ " as " ~ child_alias) -%}
           {%- endfor -%}
@@ -255,8 +289,9 @@
         {%- else -%}
           {# Scalar, array, or OBJECT at max depth: project as single column #}
           {%- set cast     = dbt_vitao._snowflake__type_to_cast(vtype) -%}
-          {%- set alias    = col_prefix ~ dbt_vitao.normalize_alias(key) -%}
-          {%- set key_path = "src." ~ json_column ~ "['" ~ key ~ "']" -%}
+          {%- set alias    = dbt_vitao._snowflake__dedupe_alias(
+            col_prefix ~ dbt_vitao.normalize_alias(key), used_aliases) -%}
+          {%- set key_path = "src." ~ json_column ~ "['" ~ escaped_key ~ "']" -%}
           {%- set casted   = dbt_vitao._snowflake__cast_expr(key_path, cast, strip_quotes) -%}
           {%- do projections.append(casted ~ " as " ~ alias) -%}
         {%- endif -%}

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.2] — 2026-08-04
+
+### Fixed
+
+- **`flatten_json`** (Snowflake): source keys containing a literal apostrophe
+  (e.g. a survey question referencing `invite('custom 2')`) broke out of the
+  generated SQL string literal and produced invalid SQL. Key text is now
+  escaped before being interpolated into `RAW_DATA['...']` bracket-path
+  expressions, in both auto-discovery and `schema_override` modes.
+- **`flatten_json`** (Snowflake, auto-discovery): two genuinely distinct
+  source keys that normalize to the same alias (e.g. `"Nome"` and `"Nome:"`
+  both becoming `nome`) produced a `duplicate column name` SQL error instead
+  of building. Colliding aliases are now disambiguated with a numeric suffix
+  (`nome`, `nome_2`, ...).
+
 ## [0.3.1] — 2026-08-04
 
 ### Fixed
