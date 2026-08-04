@@ -28,5 +28,20 @@
     {%- set result = '_' ~ result -%}
   {%- endif -%}
 
+  {#- A source key can normalize to a bare SQL reserved word (e.g. a JSON key literally
+      named "null"), which can't be used unquoted as a column alias. #}
+  {%- set reserved_words = [
+    'all', 'and', 'any', 'as', 'asc', 'between', 'by', 'case', 'check', 'column',
+    'create', 'cross', 'current', 'default', 'delete', 'desc', 'distinct', 'drop',
+    'else', 'end', 'exists', 'false', 'for', 'foreign', 'from', 'full', 'group',
+    'having', 'in', 'index', 'inner', 'insert', 'intersect', 'into', 'is', 'join',
+    'key', 'left', 'like', 'limit', 'not', 'null', 'on', 'or', 'order', 'outer',
+    'primary', 'references', 'right', 'select', 'set', 'table', 'then', 'true',
+    'union', 'unique', 'update', 'using', 'values', 'when', 'where', 'with'
+  ] -%}
+  {%- if result in reserved_words -%}
+    {%- set result = result ~ '_' -%}
+  {%- endif -%}
+
   {{ return(result) }}
 {% endmacro %}

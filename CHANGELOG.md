@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.3] — 2026-08-04
+
+### Fixed
+
+- **`normalize_alias`**: a source key that normalizes to a bare SQL reserved
+  word (e.g. a JSON key literally named `"null"`) produced an invalid
+  unquoted column alias (`as null`). Reserved-word results now get a
+  trailing underscore (`null_`).
+
 ## [0.3.2] — 2026-08-04
 
 ### Fixed
