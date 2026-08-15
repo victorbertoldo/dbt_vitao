@@ -50,7 +50,25 @@ macros:
       - name: max_depth
         description: Maximum nesting depth for auto-discovery. Default 2.
       - name: sample_size
-        description: Row limit for key auto-discovery (Snowflake only). Default 1000.
+        description: >
+          Row limit for key auto-discovery (Snowflake only). Default 1000.
+          The limit is NOT ordered, so it reads whatever rows the scan reaches
+          first and the window can change between runs: keys that only appear
+          outside it are silently dropped from the projection, and keys that are
+          JSON null throughout it are typed from no evidence. Raising the number
+          is not a reliable fix, since a larger unordered limit can keep hitting
+          the same micro-partitions. Pass `none` (or 0) to remove the limit and
+          profile the entire relation, making discovery deterministic and
+          complete -- recommended for production models. Cost is one full scan
+          per object node at compile time.
+      - name: null_key_cast
+        description: >
+          Cast applied to a key whose only observed type is JSON null (Snowflake
+          auto-discovery only). Default 'string', which yields a plain typed
+          NULL column. Pass 'variant' for the pre-0.5.0 behaviour of leaving it
+          uncast. Does not affect OBJECT or ARRAY keys, which stay VARIANT
+          because they cannot be projected into a scalar column, nor
+          `schema_override`, where the cast is always explicit.
       - name: schema_override
         description: >
           Optional list of paths to project. Accepts strings or dicts.

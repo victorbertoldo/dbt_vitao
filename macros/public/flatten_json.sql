@@ -10,7 +10,8 @@
     include_json_column=true,
     recursive=true,
     outer=true,
-    strip_quotes=false
+    strip_quotes=false,
+    null_key_cast='string'
 ) %}
   {{ return(adapter.dispatch('flatten_json', 'dbt_vitao')(
       relation,
@@ -24,6 +25,7 @@
       include_json_column,
       recursive,
       outer,
-      strip_quotes
+      strip_quotes,
+      null_key_cast
   )) }}
 {% endmacro %}

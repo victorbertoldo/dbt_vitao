@@ -1,3 +1,9 @@
+{#
+  `sample_size` and `null_key_cast` are accepted for signature compatibility with
+  the dispatch wrapper but unused here: PostgreSQL has no compile-time key
+  discovery, so mode='columns' requires an explicit `schema_override` and there is
+  no inferred type to fall back on.
+#}
 {% macro postgres__flatten_json(
     relation,
     json_column,
@@ -10,7 +16,8 @@
     include_json_column,
     recursive,
     outer,
-    strip_quotes
+    strip_quotes,
+    null_key_cast
 ) %}
 
   {%- if mode == 'rows' -%}

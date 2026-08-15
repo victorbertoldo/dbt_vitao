@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.0] — 2026-08-15
+
+Makes Snowflake schema inference deterministic. Both items below are
+Snowflake-only: PostgreSQL requires an explicit `schema_override` for
+`mode='columns'` and has no compile-time key discovery.
+
+### Added
+
+- **`flatten_json`**: `sample_size=none` (or `0`) now removes the `LIMIT` from
+  key auto-discovery and profiles the entire relation. The existing default of
+  `1000` is unchanged, so this is backward compatible.
+
+  The discovery query's `limit` has no `ORDER BY`, so it reads whatever rows the
+  scan reaches first — in practice the earliest micro-partitions, not a random
+  draw — and the window can differ between runs. Two failure modes were observed
+  in production against a 3.8M-row VARIANT source:
+
+  - a key present only outside the window was never discovered and its data was
+    silently dropped from the projection (a survey table lost 10 question
+    columns; a person table lost a key populated in 47 of 730.869 rows);
+  - the *set* of columns typed as `VARIANT` changed from run to run for the same
+    unchanged source.
+
+  Raising `sample_size` is not a reliable workaround: a larger unordered limit
+  can keep hitting the same partitions — 200.000 rows still returned only
+  `NULL_VALUE` for a key with 714.618 non-null values. Use `sample_size=none`
+  for production models; the cost is one full scan per object node at compile
+  time (~3s on the 3.8M-row source above).
+
+- **`flatten_json`**: new `null_key_cast` parameter (default `'string'`)
+  controlling how a key whose only observed type is JSON null is cast.
+
+### Changed
+
+- **`flatten_json`** (Snowflake, `mode='columns'`, auto-discovery): a key that
+  is JSON null across every sampled row no longer falls through to the `variant`
+  fallback. `typeof()` returns `NULL_VALUE` for it, which the type map did not
+  match, so it produced an uncast `VARIANT` column holding nothing but nulls —
+  unusable downstream and unstable across runs. It is now cast via
+  `null_key_cast`, yielding a plain typed `NULL` column.
+
+  **Migration**: pass `null_key_cast='variant'` to restore the previous
+  behaviour. Only columns that were entirely null are affected; no data changes,
+  only their declared type. `OBJECT` and `ARRAY` keys are deliberately untouched
+  and still project as `VARIANT`, since neither can be flattened into a single
+  scalar column (use `mode='rows'` for arrays).
+
 ## [0.4.1] — 2026-08-04
 
 ### Added

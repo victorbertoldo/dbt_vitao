@@ -10,14 +10,15 @@
     include_json_column,
     recursive,
     outer,
-    strip_quotes
+    strip_quotes,
+    null_key_cast
 ) %}
 
   {%- if mode == 'rows' -%}
     {{ dbt_vitao._snowflake__flatten_json_rows(relation, json_column, include_source_columns, recursive, outer) }}
 
   {%- elif mode == 'columns' -%}
-    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes) }}
+    {{ dbt_vitao._snowflake__flatten_json_columns(relation, json_column, schema_override, prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes, null_key_cast) }}
 
   {%- else -%}
     {{ exceptions.raise_compiler_error(
@@ -35,12 +36,24 @@
   strings) depending on account/version -- match all known synonyms rather than
   a single literal, since an unmatched type silently falls back to `variant`
   (uncast), which then displays with native JSON quoting for strings.
+
+  NULL_VALUE means every sampled occurrence of the key held a JSON null, so there
+  is no observed type to infer from. Leaving it uncast produced a VARIANT column
+  holding nothing but nulls -- unusable downstream and, worse, unstable: the
+  discovery sample is unordered (see _snowflake__discover_keys), so the same key
+  could land on VARIANT in one run and on a real type in the next. It is now cast
+  to `null_key_cast` (default 'string'), yielding a plain typed NULL column. Pass
+  null_key_cast='variant' to restore the pre-0.5.0 behavior.
+
+  OBJECT and ARRAY still fall through to `variant` deliberately -- an object past
+  max_depth, or any array, cannot be projected into a single scalar column.
 #}
-{%- macro _snowflake__type_to_cast(sf_typeof) -%}
+{%- macro _snowflake__type_to_cast(sf_typeof, null_key_cast='string') -%}
   {%- if sf_typeof in ('FIXED', 'INTEGER', 'BIGINT', 'SMALLINT', 'TINYINT', 'DECIMAL', 'NUMBER', 'NUMERIC') -%}number
   {%- elif sf_typeof in ('REAL', 'FLOAT', 'DOUBLE') -%}float
   {%- elif sf_typeof in ('TEXT', 'VARCHAR', 'CHAR', 'STRING') -%}string
   {%- elif sf_typeof == 'BOOLEAN' -%}boolean
+  {%- elif sf_typeof == 'NULL_VALUE' -%}{{ null_key_cast if null_key_cast else 'variant' }}
   {%- else -%}variant
   {%- endif -%}
 {%- endmacro -%}
@@ -110,6 +123,22 @@
   or '' for the root object). Sampled rows can disagree on a key's type (e.g. NULL for
   some rows, OBJECT/TEXT for others) -- dedupes to one entry per key, preferring the
   first non-NULL_VALUE type seen, so callers never see the same key twice.
+
+  SAMPLING RISK -- `limit sample_size` has no ORDER BY, so Snowflake returns whatever
+  rows the scan reaches first (in practice the earliest micro-partitions, not a random
+  draw) and the set can change between runs. Two consequences, both observed in
+  production:
+
+    * a key present only in rows outside the window is never discovered, and its data
+      is silently dropped from the projection;
+    * a key that is JSON null throughout the window is typed from no evidence at all
+      (see _snowflake__type_to_cast / null_key_cast).
+
+  Raising sample_size does not reliably help: because the limit is unordered, a bigger
+  window can keep hitting the same partitions. Pass `sample_size=none` (or 0) to drop
+  the LIMIT entirely and profile the whole relation -- discovery then becomes
+  deterministic and complete. That is the recommended setting for production models;
+  the cost is one full scan per object node at compile time.
 #}
 {%- macro _snowflake__discover_keys(relation, json_column, parent_path_expr, sample_size) -%}
   {%- set sql -%}
@@ -121,7 +150,9 @@
       from {{ relation }}
       where {{ json_column }} is not null
         and typeof({{ json_column }}) = 'OBJECT'
+      {%- if sample_size %}
       limit {{ sample_size }}
+      {%- endif %}
     ) src,
     lateral flatten(
       input => object_keys(src.{{ json_column }}{{ parent_path_expr }}),
@@ -162,7 +193,8 @@
 #}
 {%- macro _snowflake__expand_object(
     relation, json_column, sample_size, max_depth, strip_quotes, col_prefix,
-    path_segments, alias_parts, current_depth, used_aliases, projections
+    path_segments, alias_parts, current_depth, used_aliases, projections,
+    null_key_cast='string'
 ) -%}
   {#- `_snowflake__bracket_path` with an empty column_name yields just the joined bracket
      segments (e.g. "['user']['address']"); reused here rather than accumulating the
@@ -181,11 +213,12 @@
     {%- if vtype == 'OBJECT' and current_depth < max_depth -%}
       {%- do dbt_vitao._snowflake__expand_object(
         relation, json_column, sample_size, max_depth, strip_quotes, col_prefix,
-        new_path_segments, new_alias_parts, current_depth + 1, used_aliases, projections
+        new_path_segments, new_alias_parts, current_depth + 1, used_aliases, projections,
+        null_key_cast
       ) -%}
 
     {%- else -%}
-      {%- set cast       = dbt_vitao._snowflake__type_to_cast(vtype) -%}
+      {%- set cast       = dbt_vitao._snowflake__type_to_cast(vtype, null_key_cast) -%}
       {%- set alias_raw  = new_alias_parts | join('_') -%}
       {%- set alias      = dbt_vitao._snowflake__dedupe_alias(
         col_prefix ~ dbt_vitao.normalize_alias(alias_raw), used_aliases) -%}
@@ -222,7 +255,8 @@
 
 {%- macro _snowflake__flatten_json_columns(
     relation, json_column, schema_override,
-    prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes
+    prefix, include_source_columns, include_json_column, sample_size, max_depth, strip_quotes,
+    null_key_cast='string'
 ) -%}
 
   {%- set col_prefix = prefix ~ '_' if prefix else '' -%}
@@ -277,7 +311,7 @@
       {%- set used_aliases = {} -%}
       {%- do dbt_vitao._snowflake__expand_object(
         relation, json_column, sample_size, max_depth, strip_quotes, col_prefix,
-        [], [], 1, used_aliases, projections
+        [], [], 1, used_aliases, projections, null_key_cast
       ) -%}
 
       select

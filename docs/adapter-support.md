@@ -91,12 +91,28 @@ Best for: schema discovery, arrays, key-value profiling, audit models.
 
 ## Snowflake JSON limitations
 
-1. Auto-discovery (`schema_override=none`) samples only top-level keys.
+1. Auto-discovery (`schema_override=none`) profiles a sample of rows.
    Sparse or polymorphic JSON may produce incomplete column sets.
-2. Production models should use `schema_override` for deterministic output.
-3. Arbitrary array indexes are not projected in columns mode.
-   Use `mode='rows'` to explode arrays.
-4. `VARIANT`, `OBJECT`, and `ARRAY` types are returned as-is by `format_column`.
+2. The discovery `limit` is **not ordered**. With the default `sample_size=1000`
+   it reads whatever rows the scan reaches first — in practice the earliest
+   micro-partitions, not a random draw — and that window can change between
+   runs. A key present only outside it is silently dropped from the projection,
+   and the set of inferred types is not stable across runs. Raising
+   `sample_size` is not a reliable fix: a larger unordered limit can keep
+   hitting the same partitions.
+3. For deterministic output use either `schema_override` (an explicit contract)
+   or `sample_size=none`, which drops the `LIMIT` and profiles the whole
+   relation. `sample_size=none` costs one full scan per object node at compile
+   time and is the recommended setting for production models that cannot
+   enumerate their keys by hand.
+4. A key that is JSON null across every profiled row has no type to infer. Since
+   0.5.0 it is cast via `null_key_cast` (default `'string'`) instead of being
+   left as an uncast `VARIANT`. Pass `null_key_cast='variant'` for the previous
+   behaviour.
+5. Arbitrary array indexes are not projected in columns mode.
+   Use `mode='rows'` to explode arrays. `OBJECT` keys past `max_depth` and all
+   `ARRAY` keys stay `VARIANT` by design.
+6. `VARIANT`, `OBJECT`, and `ARRAY` types are returned as-is by `format_column`.
    They are not cast to string automatically.
 
 ## PostgreSQL JSON limitations

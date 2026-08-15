@@ -99,6 +99,37 @@ schema_override=[
 ]
 ```
 
+#### Auto-discovery on Snowflake (`schema_override=none`)
+
+Without `schema_override`, Snowflake keys are discovered at compile time by
+profiling rows of the relation. The default `sample_size=1000` applies an
+**unordered** `LIMIT`, so it reads whatever rows the scan reaches first and that
+window can change between runs — a key living only outside it is silently
+dropped from the projection, and inferred types are not stable. Raising the
+number does not reliably help: a larger unordered limit can keep hitting the
+same micro-partitions.
+
+Use `sample_size=none` to profile the entire relation and get deterministic,
+complete discovery. This is the recommended setting for production models where
+enumerating every key by hand is impractical:
+
+```sql
+{{ dbt_vitao.flatten_json(
+    relation=source('raw', 'events'),
+    json_column='RAW_DATA',
+    mode='columns',
+    max_depth=2,
+    sample_size=none,
+    strip_quotes=true
+) }}
+```
+
+A key that holds JSON null in every profiled row has no type to infer; it is
+cast per `null_key_cast` (default `'string'`), producing a typed `NULL` column
+instead of an uncast `VARIANT`. Pass `null_key_cast='variant'` for the pre-0.5.0
+behaviour. Arrays, and objects deeper than `max_depth`, always stay `VARIANT` —
+use `mode='rows'` to flatten an array.
+
 #### mode='rows' — lateral explosion
 
 ```sql
